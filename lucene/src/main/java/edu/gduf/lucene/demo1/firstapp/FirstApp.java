@@ -1,6 +1,6 @@
-package edu.gduf.lucene.firstapp;
+package edu.gduf.lucene.demo1.firstapp;
 
-import edu.gduf.lucene.entity.Article;
+import edu.gduf.lucene.demo1.entity.Article;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;

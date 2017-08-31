@@ -1,4 +1,4 @@
-package edu.gduf.lucene.entity;
+package edu.gduf.lucene.demo1.entity;
 
 /**
  * 文章
