@@ -75,6 +75,10 @@ public class ArticleDao {
         indexWriter.close();
     }
 
+    @Test
+    public void findAll() throws Exception {
+        findAllByKeywords("电商");
+    }
     public void findAllByKeywords(String keywords) throws Exception {
         List<Article> articles = new ArrayList<>();
         QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(), "content", LuceneUtil.getAnalyzer());
