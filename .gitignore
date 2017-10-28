@@ -3,3 +3,4 @@ netty/.idea/
 zookeeper/.idea/
 sort/.idea/
 lucene/.idea/
+netty/target/
