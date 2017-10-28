@@ -8,6 +8,7 @@ import java.util.List;
 
 /**
  * 业务层
+ *
  * @author ZGJ
  * @date 2017/9/3 22:39
  **/
@@ -15,7 +16,8 @@ public class ArticleService {
     private ArticleDao articleDao = new ArticleDao();
 
     /**
-     * g根据关键字和页数，查询内容
+     * 根据关键字和页数，查询内容
+     *
      * @param keywords
      * @param curPage
      * @return
@@ -28,7 +30,7 @@ public class ArticleService {
         page.setAllRecordNO(allRecordNO);
 
         int pageNO = 0;
-        if(page.getAllRecordNO() % page.getPerPageSize() == 0) {
+        if (page.getAllRecordNO() % page.getPerPageSize() == 0) {
             pageNO = page.getAllRecordNO() / page.getPerPageSize();
         } else {
             pageNO = page.getAllRecordNO() / page.getPerPageSize() + 1;
@@ -37,7 +39,7 @@ public class ArticleService {
 
         int size = page.getCurPageNO();
         int start = (page.getCurPageNO() - 1) * size;
-        List<Article> articles  = articleDao.findAll(keywords, start, size);
+        List<Article> articles = articleDao.findAll(keywords, start, size);
         page.setArticleList(articles);
         return page;
     }
