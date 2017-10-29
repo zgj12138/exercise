@@ -1,6 +1,6 @@
-package com.kevin.bio1;
+package com.kevin.netty.bio1;
 
-import com.kevin.bio.TimeServerHandler;
+import com.kevin.netty.bio.TimeServerHandler;
 
 import java.io.IOException;
 import java.net.ServerSocket;

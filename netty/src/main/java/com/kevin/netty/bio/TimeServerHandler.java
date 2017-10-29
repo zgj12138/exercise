@@ -1,4 +1,4 @@
-package com.kevin.bio;
+package com.kevin.netty.bio;
 
 import java.io.BufferedReader;
 import java.io.IOException;
