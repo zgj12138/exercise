@@ -15,6 +15,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
  **/
 public class TimeClient {
     public void connect(String host, int port) throws InterruptedException {
+        //创建nio线程组
         EventLoopGroup group = new NioEventLoopGroup();
         try {
             Bootstrap bootstrap = new Bootstrap();

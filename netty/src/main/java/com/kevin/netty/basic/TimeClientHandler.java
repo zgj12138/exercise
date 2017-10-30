@@ -12,6 +12,7 @@ import java.util.logging.Logger;
  * create on 2017/10/29 23:56
  **/
 public class TimeClientHandler extends ChannelHandlerAdapter {
+
     private static Logger logger = Logger.getLogger(TimeClientHandler.class.getName());
 
     private final ByteBuf firstMessage;
@@ -30,15 +31,16 @@ public class TimeClientHandler extends ChannelHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         ByteBuf byteBuf = (ByteBuf) msg;
-        byte[] req = new byte[byteBuf.writableBytes()];
+        byte[] req = new byte[byteBuf.readableBytes()];
         byteBuf.readBytes(req);
         String body = new String(req, "utf-8");
         System.out.println("Now is :" + body);
-
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        logger.warning("Unexpected exception from downstream : "
+                + cause.getMessage());
         ctx.close();
     }
 }
