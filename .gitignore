@@ -1,6 +1,9 @@
 *.iml
 netty/.idea/
-zookeeper/.idea/
-sort/.idea/
-lucene/.idea/
 netty/target/
+zookeeper/.idea/
+zookeeper/target
+sort/.idea/
+sort/target
+lucene/.idea/
+lucene/target
