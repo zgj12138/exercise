@@ -1,9 +1,37 @@
+
 package com.kevin.netty.protocol.http.fileserver;
+
+import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
+import static io.netty.handler.codec.http.HttpHeaders.setContentLength;
+import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
+import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaders.Names.LOCATION;
+import static io.netty.handler.codec.http.HttpMethod.GET;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
-import io.netty.handler.codec.http.*;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelProgressiveFuture;
+import io.netty.channel.ChannelProgressiveFutureListener;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
 
@@ -14,111 +42,140 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.regex.Pattern;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
-import static io.netty.handler.codec.http.HttpMethod.GET;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-
+import javax.activation.MimetypesFileTypeMap;
 
 /**
  * @author ZGJ
- * create on 2017/11/4 20:16
- **/
-public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+ * create on 2017/11/19 21:41
+ */
+public class HttpFileServerHandler extends
+        SimpleChannelInboundHandler<FullHttpRequest> {
+    private static final Pattern INSECURE_URI = Pattern.compile(".*[<>&\"].*");
+    private static final Pattern ALLOWED_FILE_NAME = Pattern
+            .compile("[A-Za-z0-9][-_A-Za-z0-9\\.]*");
 
-    private static final Pattern INSECURE_URL = Pattern.compile(".*[<>&\"].*");
-    private static final Pattern ALLOWED_FILE_NAME = Pattern.compile("[A-Za-z0-9][-_A-Za-z0-9\\.]*");
+    private final String url;
 
-    private String url;
+
 
     public HttpFileServerHandler(String url) {
         this.url = url;
     }
 
     @Override
-    protected void messageReceived(ChannelHandlerContext channelHandlerContext, FullHttpRequest fullHttpRequest) throws Exception {
-        //请求不成功
-        if (!fullHttpRequest.getDecoderResult().isSuccess()) {
-            sendError(channelHandlerContext, BAD_REQUEST);
+    public void messageReceived(ChannelHandlerContext ctx,
+                                FullHttpRequest request) throws Exception {
+        if (!request.getDecoderResult().isSuccess()) {
+            sendError(ctx, BAD_REQUEST);
             return;
         }
-        //方法不是get
-        if (fullHttpRequest.getMethod() != GET) {
-            sendError(channelHandlerContext, METHOD_NOT_ALLOWED);
+        if (request.getMethod() != GET) {
+            sendError(ctx, METHOD_NOT_ALLOWED);
             return;
         }
-        final String uri = fullHttpRequest.getUri();
-        final String path = sanitizeUrl(uri);
+        final String uri = request.getUri();
+        final String path = sanitizeUri(uri);
         if (path == null) {
-            sendError(channelHandlerContext, FORBIDDEN);
+            sendError(ctx, FORBIDDEN);
             return;
         }
         File file = new File(path);
         if (file.isHidden() || !file.exists()) {
-            sendError(channelHandlerContext, NOT_FOUND);
+            sendError(ctx, NOT_FOUND);
             return;
         }
-        //如果是目录
         if (file.isDirectory()) {
             if (uri.endsWith("/")) {
-                sendListing(channelHandlerContext, file);
+                sendListing(ctx, file);
             } else {
-                sendRedirect(channelHandlerContext, uri + '/');
+                sendRedirect(ctx, uri + '/');
             }
             return;
         }
         if (!file.isFile()) {
-            sendError(channelHandlerContext, FORBIDDEN);
+            sendError(ctx, FORBIDDEN);
             return;
         }
         RandomAccessFile randomAccessFile = null;
         try {
-            randomAccessFile = new RandomAccessFile(file, "r");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            sendError(channelHandlerContext, FORBIDDEN);
+            randomAccessFile = new RandomAccessFile(file, "r");// 以只读的方式打开文件
+        } catch (FileNotFoundException e1) {
+            e1.printStackTrace();
+            sendError(ctx, NOT_FOUND);
             return;
         }
         long fileLength = randomAccessFile.length();
-        HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, OK);
+        HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
         setContentLength(response, fileLength);
-        if (isKeepAlive(fullHttpRequest)) {
+        setContentTypeHeader(response, file);
+        if (isKeepAlive(request)) {
             response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
         }
-        channelHandlerContext.write(response);
+        ctx.write(response);
         ChannelFuture sendFileFuture;
-        sendFileFuture = channelHandlerContext.write(new ChunkedFile(randomAccessFile, 0, fileLength, 8192),
-                channelHandlerContext.newProgressivePromise());
+        sendFileFuture = ctx.write(new ChunkedFile(randomAccessFile, 0,
+                fileLength, 8192), ctx.newProgressivePromise());
         sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
             @Override
-            public void operationProgressed(ChannelProgressiveFuture channelProgressiveFuture, long l, long l1) throws Exception {
-                if (l1 < 0) {
-                    System.err.println("Transfer progress: " + l);
+            public void operationProgressed(ChannelProgressiveFuture future,
+                                            long progress, long total) {
+                if (total < 0) { // total unknown
+                    System.err.println("Transfer progress: " + progress);
                 } else {
-                    System.err.println("Transfer progress: " + l + "/" + l1);
+                    System.err.println("Transfer progress: " + progress + " / "
+                            + total);
                 }
             }
 
             @Override
-            public void operationComplete(ChannelProgressiveFuture channelProgressiveFuture) throws Exception {
-                System.out.println("Transfer complete");
+            public void operationComplete(ChannelProgressiveFuture future)
+                    throws Exception {
+                System.out.println("Transfer complete.");
             }
         });
-        ChannelFuture lastContentFuture = channelHandlerContext.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-        if (!isKeepAlive(fullHttpRequest)) {
+        ChannelFuture lastContentFuture = ctx
+                .writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+        if (!isKeepAlive(request)) {
             lastContentFuture.addListener(ChannelFutureListener.CLOSE);
         }
     }
 
-    private void setContentLength(HttpResponse response, long fileLength) {
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+            throws Exception {
+        cause.printStackTrace();
+        if (ctx.channel().isActive()) {
+            sendError(ctx, INTERNAL_SERVER_ERROR);
+        }
     }
 
-    private void sendRedirect(ChannelHandlerContext channelHandlerContext, String s) {
+    private String sanitizeUri(String uri) {
+        try {
+            uri = URLDecoder.decode(uri, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            try {
+                uri = URLDecoder.decode(uri, "ISO-8859-1");
+            } catch (UnsupportedEncodingException e1) {
+                throw new Error();
+            }
+        }
+        if (!uri.startsWith(url)) {
+            return null;
+        }
+        if (!uri.startsWith("/")) {
+            return null;
+        }
+        uri = uri.replace('/', File.separatorChar);
+        if (uri.contains(File.separator + '.')
+                || uri.contains('.' + File.separator) || uri.startsWith(".")
+                || uri.endsWith(".") || INSECURE_URI.matcher(uri).matches()) {
+            return null;
+        }
+        return System.getProperty("user.dir") + File.separator + uri;
     }
 
-    private void sendListing(ChannelHandlerContext channelHandlerContext, File dir) {
-        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, OK);
+    private static void sendListing(ChannelHandlerContext ctx, File dir) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK);
         response.headers().set(CONTENT_TYPE, "text/html; charset=UTF-8");
         StringBuilder buf = new StringBuilder();
         String dirPath = dir.getPath();
@@ -132,12 +189,12 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
         buf.append("</h3>\r\n");
         buf.append("<ul>");
         buf.append("<li>链接：<a href=\"../\">..</a></li>\r\n");
-        for(File file : dir.listFiles()) {
-            if(file.isHidden() || file.canRead()) {
+        for (File f : dir.listFiles()) {
+            if (f.isHidden() || !f.canRead()) {
                 continue;
             }
-            String name = file.getName();
-            if(!ALLOWED_FILE_NAME.matcher(name).matches()) {
+            String name = f.getName();
+            if (!ALLOWED_FILE_NAME.matcher(name).matches()) {
                 continue;
             }
             buf.append("<li>链接：<a href=\"");
@@ -149,48 +206,38 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
         buf.append("</ul></body></html>\r\n");
         ByteBuf buffer = Unpooled.copiedBuffer(buf, CharsetUtil.UTF_8);
         response.content().writeBytes(buffer);
-        response.release();
-        channelHandlerContext.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+        buffer.release();
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
-
-    private String sanitizeUrl(String uri) {
-        try {
-            uri = URLDecoder.decode(uri, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-            try {
-                uri = URLDecoder.decode(uri, "ISO-8859-1");
-            } catch (UnsupportedEncodingException e1) {
-                e1.printStackTrace();
-            }
-        }
-        if(!uri.startsWith(url)) {
-            return null;
-        }
-        if(!uri.startsWith("/")) {
-            return null;
-        }
-
-        uri = uri.replace('/', File.separatorChar);
-        if(uri.contains(File.separator + '.') || uri.contains("." + File.separator)
-                || uri.startsWith(".") || uri.endsWith(".")
-                || INSECURE_URL.matcher(uri).matches()) {
-            return null;
-        }
-        return System.getProperty("user.dir") + File.separator + uri;
+    /**
+     * 设置重定向
+     * @param ctx
+     * @param newUri
+     */
+    private static void sendRedirect(ChannelHandlerContext ctx, String newUri) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, FOUND);
+        response.headers().set(LOCATION, newUri);
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
-    public static void sendError(ChannelHandlerContext context, HttpResponseStatus status) {
-        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, OK);
-
-
+    /**
+     * 发送错误
+     * @param ctx
+     * @param status
+     */
+    private static void sendError(ChannelHandlerContext ctx,
+                                  HttpResponseStatus status) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1,
+                status, Unpooled.copiedBuffer("Failure: " + status.toString()
+                + "\r\n", CharsetUtil.UTF_8));
+        response.headers().set(CONTENT_TYPE, "text/plain; charset=UTF-8");
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        if (ctx.channel().isActive()) {
-            sendError(ctx, INTERNAL_SERVER_ERROR);
-        }
+    private static void setContentTypeHeader(HttpResponse response, File file) {
+        MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
+        response.headers().set(CONTENT_TYPE,
+                mimeTypesMap.getContentType(file.getPath()));
     }
 }
