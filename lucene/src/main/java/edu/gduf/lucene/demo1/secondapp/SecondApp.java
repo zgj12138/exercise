@@ -22,7 +22,7 @@ import java.util.List;
 public class SecondApp {
     @Test
     public void createIndexDB() throws Exception {
-        Article article = new Article(1, "电商", "唯品会是一家互联网电商公司");
+        Article article = new Article(1, "电商", "阿里巴巴是一家互联网电商公司");
         Document document = LuceneUtil.javaBean2Document(article);
         IndexWriter indexWriter = new IndexWriter(LuceneUtil.getDirectory(), LuceneUtil.getAnalyzer(), LuceneUtil.getMaxFieldLength());
         indexWriter.addDocument(document);

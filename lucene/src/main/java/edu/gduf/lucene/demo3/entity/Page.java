@@ -1,4 +1,6 @@
-package edu.gduf.lucene.demo1.entity;
+package edu.gduf.lucene.demo3.entity;
+
+import edu.gduf.lucene.demo1.entity.Article;
 
 import java.util.ArrayList;
 import java.util.List;

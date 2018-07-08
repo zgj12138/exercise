@@ -19,7 +19,7 @@ import java.util.List;
 public class ArticleDao {
 
     public int getAllRecord(String keywords) throws Exception {
-        List<Article> articles = new ArrayList<>();
+
         QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(), "content", LuceneUtil.getAnalyzer());
         Query query = queryParser.parse(keywords);
         IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
@@ -34,7 +34,7 @@ public class ArticleDao {
         Query query = queryParser.parse(keywords);
         IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
         TopDocs topDocs = indexSearcher.search(query, 100);
-        int max = Math.max(start + size, topDocs.totalHits);
+        int max = Math.min(start + size, topDocs.totalHits);
         for(int i = start; i < max; i++) {
             ScoreDoc scoreDoc = topDocs.scoreDocs[i];
             int no = scoreDoc.doc;

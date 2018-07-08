@@ -1,0 +1,17 @@
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                      http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+         metadata-complete="true">
+  <!--配置DispatcherServlet-->
+  <servlet>
+    <servlet-name>articleServlet</servlet-name>
+    <servlet-class>edu.gduf.lucene.demo2.servlet.ArticleServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>articleServlet</servlet-name>
+    <!--默认匹配所有的请求-->
+    <url-pattern>/articleServlet</url-pattern>
+  </servlet-mapping>
+</web-app>

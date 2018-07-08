@@ -1,7 +1,7 @@
-package edu.gduf.lucene.demo1.service;
+package edu.gduf.lucene.demo2.service;
 
 import edu.gduf.lucene.demo1.entity.Article;
-import edu.gduf.lucene.demo1.entity.Page;
+import edu.gduf.lucene.demo2.entity.Page;
 import edu.gduf.lucene.demo2.dao.ArticleDao;
 
 import java.util.List;
@@ -26,6 +26,7 @@ public class ArticleService {
     public Page show(String keywords, int curPage) throws Exception {
         Page page = new Page();
         page.setCurPageNO(curPage);
+        page.setPerPageSize(2);
         int allRecordNO = articleDao.getAllRecord(keywords);
         page.setAllRecordNO(allRecordNO);
 
